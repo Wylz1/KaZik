@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+<title>KaZik</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{
+  --bg:#fff7ec; --ink:#1d1030; --card:#ffffff; --pink:#ff3d81; --violet:#7c4dff; --cyan:#00c2d1; --lime:#b6e600; --orange:#ff8a00; --gold:#ffc400;
+  --muted:#7d7090;
+}
+@media (prefers-color-scheme: dark){
+  :root{--bg:#1a0f2e; --ink:#fff4e2; --card:#2a1a47; --muted:#b4a6cf;}
+}
+*{box-sizing:border-box;margin:0;-webkit-tap-highlight-color:transparent}
+html,body{height:100%}
+body{font-family:"Trebuchet MS","Segoe UI",system-ui,sans-serif;background:var(--bg);color:var(--ink);
+  padding:env(safe-area-inset-top,0) 0 env(safe-area-inset-bottom,0);overflow:hidden}
+.screen{position:fixed;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;padding:24px;
+  padding-top:calc(24px + env(safe-area-inset-top,0px));padding-bottom:calc(24px + env(safe-area-inset-bottom,0px))}
+.screen.on{display:flex}
+.logo{font-family:Impact,"Arial Black",sans-serif;font-size:clamp(56px,20vw,104px);letter-spacing:2px;line-height:1;
+  background:linear-gradient(90deg,var(--pink),var(--orange),var(--gold),var(--lime),var(--cyan),var(--violet));
+  -webkit-background-clip:text;background-clip:text;color:transparent;transform:rotate(-3deg);margin-bottom:6px}
+.sub{color:var(--muted);margin-bottom:28px;text-align:center}
+form{width:100%;max-width:380px;display:flex;flex-direction:column;gap:14px}
+label{font-weight:700;font-size:14px;display:block;margin-bottom:6px}
+input,select{width:100%;font:inherit;font-size:17px;padding:15px 16px;border-radius:16px;border:3px solid var(--ink);
+  background:var(--card);color:var(--ink);outline:none;appearance:none;-webkit-appearance:none}
+select{background-image:linear-gradient(45deg,transparent 50%,var(--ink) 50%),linear-gradient(135deg,var(--ink) 50%,transparent 50%);
+  background-position:calc(100% - 22px) 52%,calc(100% - 16px) 52%;background-size:6px 6px;background-repeat:no-repeat}
+input:focus,select:focus{border-color:var(--violet);box-shadow:0 0 0 4px rgba(124,77,255,.25)}
+.invalid{border-color:var(--pink)!important}
+.err{color:var(--pink);font-size:13px;min-height:16px;font-weight:700}
+.btn{font:inherit;font-weight:900;font-size:20px;border:3px solid var(--ink);border-radius:20px;padding:16px 28px;cursor:pointer;color:#fff;
+  background:linear-gradient(135deg,var(--pink),var(--orange));box-shadow:0 6px 0 var(--ink);transition:transform .08s,box-shadow .08s}
+.btn:active{transform:translateY(5px);box-shadow:0 1px 0 var(--ink)}
+.btn:disabled{filter:grayscale(.7);opacity:.7}
+.btn:focus-visible{outline:4px solid var(--violet);outline-offset:3px}
+
+/* wheel screen */
+#game{justify-content:space-between;padding:12px 0}
+.who{font-size:14px;color:var(--muted);font-weight:700;height:22px}
+.stage{position:relative;width:min(98vw,64vh);aspect-ratio:1;flex:none}
+#wheel{width:100%;height:100%;display:block;border-radius:50%;box-shadow:0 10px 0 var(--ink),0 0 0 6px var(--ink);
+  transition:transform 5.2s cubic-bezier(.12,.72,.08,1)}
+.pointer{position:absolute;left:50%;top:-14px;width:0;height:0;transform:translateX(-50%);z-index:3;
+  border-left:18px solid transparent;border-right:18px solid transparent;border-top:38px solid var(--ink);filter:drop-shadow(0 3px 0 var(--pink))}
+.hub{position:absolute;left:50%;top:50%;width:18%;aspect-ratio:1;transform:translate(-50%,-50%);border-radius:50%;
+  background:var(--card);border:4px solid var(--ink);display:grid;place-items:center;font-family:Impact,sans-serif;font-size:clamp(14px,5vw,26px);z-index:2}
+#spin{width:min(86vw,380px);font-size:28px;padding:18px}
+
+/* result */
+#modal{position:fixed;inset:0;background:rgba(20,8,40,.7);display:none;align-items:center;justify-content:center;padding:24px;z-index:10}
+#modal.on{display:flex}
+.pop{background:var(--card);border:4px solid var(--ink);border-radius:28px;padding:30px 22px;text-align:center;max-width:380px;width:100%;
+  box-shadow:0 10px 0 var(--ink);animation:pop .35s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{from{transform:scale(.6);opacity:0}}
+.pop .em{font-size:84px;line-height:1}
+.pop h2{font-family:Impact,"Arial Black",sans-serif;font-size:32px;margin:10px 0 6px;font-weight:400;line-height:1.1}
+.pop p{color:var(--muted);margin-bottom:20px}
+@media (prefers-reduced-motion:reduce){#wheel{transition-duration:.01s}.pop{animation:none}}
+</style>
+</head>
+<body>
+
+<section class="screen on" id="welcome">
+  <div class="logo">KaZik</div>
+  <p class="sub">Казино, где проиграть — это тоже выиграть</p>
+  <form id="form" novalidate>
+    <div>
+      <label for="nick">Никнейм</label>
+      <input id="nick" maxlength="24" autocomplete="off" placeholder="Как тебя называть?">
+    </div>
+    <div>
+      <label for="role">Род деятельности</label>
+      <select id="role">
+        <option value="" selected disabled>Выбери из списка</option>
+        <option value="rayon">Я районный тип</option>
+        <option value="soch">Я СОЧ</option>
+        <option value="klim">Я Клим</option>
+      </select>
+    </div>
+    <div class="err" id="err"></div>
+    <button class="btn" type="submit">Войти в KaZik</button>
+  </form>
+</section>
+
+<section class="screen" id="game">
+  <div class="who" id="who"></div>
+  <div class="stage">
+    <div class="pointer"></div>
+    <canvas id="wheel"></canvas>
+    <div class="hub">KZ</div>
+  </div>
+  <button class="btn" id="spin">КРУТИТЬ</button>
+</section>
+
+<div id="modal"><div class="pop">
+  <div class="em" id="rEm"></div><h2 id="rTitle"></h2><p id="rText"></p>
+  <button class="btn" id="again">Ещё раз</button>
+</div></div>
+
+<script>
+const tg = window.Telegram && Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); try{ tg.setHeaderColor('secondary_bg_color'); }catch(e){} }
+
+const PRIZES = {
+  punch: {em:'👊', title:'Удар в лицо', text:'Бывает. Зато честно.'},
+  beer:  {em:'🍺', title:'Пиво «Ростовский Клещ»', text:'Холодное. Заслуженное.'},
+  tick:  {em:'🕷️', title:'Настоящий РОСТОВСКИЙ КЛЕЩ', text:'ДЖЕКПОТ! Легенда района!'}
+};
+// Реальные шансы (в %), независимо от внешнего вида барабана
+const ODDS = {
+  rayon: {punch:50, beer:49, tick:1},
+  soch:  {punch:95, beer:4,  tick:1},
+  klim:  {punch:0,  beer:0,  tick:100}
+};
+
+// Барабан: 100 секций = 50 удар + 49 пиво + 1 клещ (визуально 50/49/1)
+const N = 100, SEG = 360 / N;
+const COLORS = ['#ff3d81','#ff8a00','#ffc400','#b6e600','#00c2d1','#7c4dff','#ff5252','#2ee6a6'];
+const types = [];
+(function build(){
+  const arr = [];
+  for (let i=0;i<50;i++) arr.push('punch');
+  for (let i=0;i<49;i++) arr.push('beer');
+  arr.push('tick');
+  // равномерно перемешиваем: чередование удар/пиво, клещ — в одном месте
+  const out = new Array(N); let p=0,b=0;
+  for (let i=0;i<N;i++){
+    if (i===37) out[i]='tick';
+    else if (p<50 && (i%2===0 || b>=49)) { out[i]='punch'; p++; }
+    else { out[i]='beer'; b++; }
+  }
+  // подправим баланс, если нужно
+  let cp=out.filter(t=>t==='punch').length, cb=out.filter(t=>t==='beer').length;
+  for (let i=0;i<N && cp!==50;i++){ if(cp>50&&out[i]==='punch'){out[i]='beer';cp--;cb++} else if(cp<50&&out[i]==='beer'){out[i]='punch';cp++;cb--} }
+  out.forEach((t,i)=>types[i]=t);
+})();
+
+const canvas = document.getElementById('wheel');
+function draw(){
+  const size = canvas.getBoundingClientRect().width || 340;
+  const dpr = Math.min(window.devicePixelRatio||1, 3);
+  canvas.width = canvas.height = Math.round(size*dpr);
+  const c = canvas.getContext('2d'); c.scale(dpr,dpr);
+  const R = size/2; c.translate(R,R);
+  for (let i=0;i<N;i++){
+    // секция i центрирована на угле i*SEG от верха (по часовой)
+    const a0 = (i*SEG - SEG/2 - 90) * Math.PI/180, a1 = a0 + SEG*Math.PI/180;
+    c.beginPath(); c.moveTo(0,0); c.arc(0,0,R,a0,a1); c.closePath();
+    c.fillStyle = types[i]==='tick' ? '#111' : COLORS[i % COLORS.length];
+    c.fill();
+    c.strokeStyle='rgba(255,255,255,.55)'; c.lineWidth=.6; c.stroke();
+    const mid = (a0+a1)/2;
+    c.save(); c.rotate(mid + Math.PI/2);
+    c.textAlign='center'; c.textBaseline='middle';
+    c.font = (types[i]==='tick' ? R*0.085 : R*0.05) + 'px sans-serif';
+    c.fillText(PRIZES[types[i]].em, 0, -R*0.86);
+    c.restore();
+  }
+  // золотое кольцо вокруг клеща
+  const m = (37*SEG - 90) * Math.PI/180;
+  c.beginPath(); c.arc(Math.cos(m)*R*0.86, Math.sin(m)*R*0.86, R*0.07, 0, 7);
+  c.strokeStyle='#ffc400'; c.lineWidth=3; c.stroke();
+}
+
+// --- авторизация ---
+const $ = id => document.getElementById(id);
+let user = null;
+try { user = JSON.parse(localStorage.getItem('kazik_user')||'null'); } catch(e){}
+if (!user && tg && tg.initDataUnsafe && tg.initDataUnsafe.user) $('nick').value = tg.initDataUnsafe.user.first_name || '';
+
+$('form').addEventListener('submit', e=>{
+  e.preventDefault();
+  const nick = $('nick').value.trim(), role = $('role').value;
+  $('nick').classList.toggle('invalid', !nick);
+  $('role').classList.toggle('invalid', !role);
+  if (!nick || !role){ $('err').textContent = 'Заполни никнейм и выбери род деятельности'; return; }
+  $('err').textContent='';
+  user = {nick, role};
+  try { localStorage.setItem('kazik_user', JSON.stringify(user)); } catch(e){}
+  startGame();
+});
+
+const ROLE_NAMES = {rayon:'Я районный тип', soch:'Я СОЧ', klim:'Я Клим'};
+function startGame(){
+  $('welcome').classList.remove('on'); $('game').classList.add('on');
+  $('who').textContent = user.nick + ' · ' + ROLE_NAMES[user.role];
+  requestAnimationFrame(draw);
+}
+
+// --- рулетка ---
+function roll(role){
+  const o = ODDS[role], r = Math.random()*100;
+  if (r < o.punch) return 'punch';
+  if (r < o.punch + o.beer) return 'beer';
+  return 'tick';
+}
+let rot = 0, spinning = false;
+$('spin').addEventListener('click', ()=>{
+  if (spinning || !user) return;
+  spinning = true; $('spin').disabled = true;
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.impactOccurred('medium');
+  const result = roll(user.role);
+  const idxs = types.map((t,i)=>t===result?i:-1).filter(i=>i>=0);
+  const idx = idxs[Math.floor(Math.random()*idxs.length)];
+  const jitter = (Math.random()-.5) * SEG * 0.7;
+  const target = 360 - (idx*SEG + jitter);          // секция idx оказывается под указателем
+  const cur = ((rot % 360) + 360) % 360;
+  rot += 360*6 + ((target - cur) % 360 + 360) % 360;
+  canvas.style.transform = 'rotate(' + rot + 'deg)';
+  setTimeout(()=>showResult(result), 5400);
+});
+function showResult(t){
+  const p = PRIZES[t];
+  $('rEm').textContent = p.em; $('rTitle').textContent = p.title; $('rText').textContent = p.text;
+  $('modal').classList.add('on');
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred(t==='tick'?'success':'warning');
+}
+$('again').addEventListener('click', ()=>{ $('modal').classList.remove('on'); spinning=false; $('spin').disabled=false; });
+window.addEventListener('resize', ()=>{ if(!spinning && $('game').classList.contains('on')) draw(); });
+
+if (user) { $('nick').value = user.nick; $('role').value = user.role; }
+</script>
+</body>
+</html>
